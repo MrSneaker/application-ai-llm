@@ -23,9 +23,12 @@ import javax.ws.rs.*;
 
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
+import com.xpn.xwiki.objects.BaseObject;
+
 import org.xwiki.stability.Unstable;
 
 import java.io.*;
+import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -44,13 +47,12 @@ import javax.ws.rs.core.StreamingOutput;
 
 import org.apache.commons.httpclient.*;
 import org.apache.commons.httpclient.methods.*;
-
 import org.slf4j.Logger;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
+import org.xwiki.contrib.llm.GPTAPIConfig;
 
 @Component
 @Named("org.xwiki.contrib.llm.GPTRestAPI")
@@ -64,7 +66,10 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     protected ComponentManager componentManager;
     @Inject
     protected Logger logger;
-    String openAIKey = "API_KEY";
+    String openAIKey = "";
+
+    GPTAPIConfig config = new GPTAPIConfig();
+    List<BaseObject> configObj = config.getConfigObjects();
 
     @GET
     public Response get() {
@@ -88,10 +93,15 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     @Consumes("application/json")
     public Response getContents(Map<String, Object> data) throws XWikiRestException {
         try {
+            for (Object obj : configObj) {
+                System.out.println(obj.toString());
+            }
+
             for (Map.Entry<String, Object> entry : data.entrySet()) {
                 logger.info("key: " + entry.getKey() + "; value: " + entry.getValue());
             }
-            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null || data.get("prompt") == null) {
+            if (data.get("text") == null || data.get("modelType") == null || data.get("model") == null
+                    || data.get("prompt") == null) {
                 logger.info("Invalid error data");
                 return Response.status(Response.Status.BAD_REQUEST).entity("Invalid input data.").build();
             }
@@ -122,12 +132,13 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             if (data.get("modelType").equals("openai")) {
                 post.setRequestHeader("Authorization", "Bearer " + openAIKey);
             }
-            String messages =  "[" +
-                    "{\"role\":\"system\",\"content\":\"" + data.get("prompt").toString().replace("\"", "\\\"") + "\"}," +
+            String messages = "[" +
+                    "{\"role\":\"system\",\"content\":\"" + data.get("prompt").toString().replace("\"", "\\\"") + "\"},"
+                    +
                     "{\"role\":\"user\",\"content\":\"" + data.get("text").toString().replace("\"", "\\\"") + "\"}" +
                     "]";
 
-             JSONArray messagesArray = new JSONArray();
+            JSONArray messagesArray = new JSONArray();
             JSONObject systemMessage = new JSONObject();
             systemMessage.put("role", "system");
             systemMessage.put("content", data.get("prompt").toString());
@@ -149,8 +160,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             StringRequestEntity requestEntity = new StringRequestEntity(
                     jsonInputString,
                     "application/json",
-                    "UTF-8"
-            );
+                    "UTF-8");
 
             post.setRequestEntity(requestEntity);
 
@@ -161,7 +171,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                 throw new XWikiRestException(post.getStatusLine().toString() + post.getStatusText(), null);
             }
 
-            if(!isStreaming){
+            if (!isStreaming) {
                 // Read the response body.
                 byte[] responseBody = post.getResponseBody();
 
@@ -171,12 +181,12 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
 
                 // Return the response as a JSON string
                 return Response.ok(responseBody, MediaType.APPLICATION_JSON).build();
-            }
-            else{
+            } else {
                 // Read the response body.
                 InputStream responseBody = post.getResponseBodyAsStream();
                 StreamingOutput stream = new StreamingOutput() {
-                    final BufferedReader reader = new BufferedReader(new InputStreamReader(responseBody, StandardCharsets.UTF_8));
+                    final BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(responseBody, StandardCharsets.UTF_8));
                     String line;
 
                     @Override
@@ -186,20 +196,20 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                         boolean isErrSent = false;
                         boolean stop = false;
                         while ((line = reader.readLine()) != null && !stop) {
-                            if(statusCode != HttpStatus.SC_OK){
+                            if (statusCode != HttpStatus.SC_OK) {
                                 String errorLine = "An error occured : " + post.getStatusLine();
                                 logger.error("An error occured : " + post.getStatusLine());
-                                String errorStreamMessage = "data: {\"choices\":[{\"delta\":{\"content\":\"" + errorLine + "\"}}]}";
+                                String errorStreamMessage = "data: {\"choices\":[{\"delta\":{\"content\":\"" + errorLine
+                                        + "\"}}]}";
                                 writer.write(errorStreamMessage);
                                 writer.flush();
                                 isErrSent = true;
                             }
-                            if(isErrSent){
+                            if (isErrSent) {
                                 writer.write("data: [DONE]");
                                 writer.flush();
                                 stop = true;
-                            }
-                            else{
+                            } else {
                                 // Write each line to the output
                                 logger.info("stream response line: " + line);
                                 writer.write(line);
