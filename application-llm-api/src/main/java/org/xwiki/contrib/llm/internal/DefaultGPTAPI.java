@@ -21,6 +21,9 @@ package org.xwiki.contrib.llm.internal;
 
 import com.github.openjson.JSONArray;
 import com.github.openjson.JSONObject;
+import com.robrua.nlp.bert.Bert;
+import com.xpn.xwiki.XWikiException;
+
 import org.apache.commons.httpclient.HttpClient;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.PostMethod;
@@ -28,11 +31,15 @@ import org.apache.commons.httpclient.methods.StringRequestEntity;
 import org.slf4j.Logger;
 import org.xwiki.component.annotation.Component;
 import org.xwiki.contrib.llm.GPTAPI;
+import org.xwiki.contrib.llm.GPTAPIEmbeddingBERT;
 import org.xwiki.contrib.llm.GPTAPIException;
+import org.xwiki.rest.XWikiRestException;
 import org.xwiki.stability.Unstable;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.StreamingOutput;
 import java.io.*;
 import java.util.Map;
@@ -102,7 +109,7 @@ public class DefaultGPTAPI implements GPTAPI {
             jsonInput.put("messages", messagesArray);
 
             String jsonInputString = jsonInput.toString();
-            //JSONObject builder = new JSONObject(jsonInputString);
+            // JSONObject builder = new JSONObject(jsonInputString);
             logger.info("Sending: " + jsonInputString);
 
             StringRequestEntity requestEntity = new StringRequestEntity(

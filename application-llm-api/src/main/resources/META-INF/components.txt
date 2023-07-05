@@ -1,2 +1,4 @@
 org.xwiki.contrib.llm.internal.DefaultGPTAPI
+org.xwiki.contrib.llm.internal.DefaultGPTAPIEmbeddingBERT
 org.xwiki.contrib.llm.GPTRestAPI
+org.xwiki.contrib.llm.GPTAPIEmbeddingBERT

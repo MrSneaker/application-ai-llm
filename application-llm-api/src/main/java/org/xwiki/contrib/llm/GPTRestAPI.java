@@ -56,7 +56,7 @@ import org.xwiki.contrib.llm.GPTAPIConfig;
 
 @Component
 @Named("org.xwiki.contrib.llm.GPTRestAPI")
-@Path("/gptapi/chat")
+@Path("/gptapi")
 @Unstable
 @Singleton
 public class GPTRestAPI extends ModifiablePageResource implements XWikiRestComponent {
@@ -66,7 +66,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     protected ComponentManager componentManager;
     @Inject
     protected Logger logger;
-    String openAIKey = "";
+    String openAIKey = "...";
 
     GPTAPIConfig config = new GPTAPIConfig();
     List<BaseObject> configObj = config.getConfigObjects();
@@ -89,7 +89,7 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
     }
 
     @POST
-    @Path("/completion")
+    @Path("/chat/completion")
     @Consumes("application/json")
     public Response getContents(Map<String, Object> data) throws XWikiRestException {
         try {
@@ -105,9 +105,22 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
                 logger.info("Invalid error data");
                 return Response.status(Response.Status.BAD_REQUEST).entity("Invalid input data.").build();
             }
+            String modelInfoString = (String) data.get("model");
+            logger.info(modelInfoString);
+            String[] modelInfo;
+            String model = "";
+            String modelType = "";
+            if(modelInfoString.indexOf("/") != -1){
+                modelInfo = modelInfoString.split("/");
+                logger.info("model info : ",(Object[]) modelInfo);
+                model = modelInfo[0];
+                modelType = modelInfo[1];
+            }
+            else{
+                model = modelInfoString;
+                modelType = "openai";
+            }
             logger.info("Received text: " + data.get("text"));
-            logger.info("Received modelType: " + data.get("modelType"));
-            logger.info("Received model: " + data.get("model"));
             logger.info("Received mode: " + data.get("stream"));
 
             boolean isStreaming = (Objects.equals(data.get("stream").toString(), "streamMode"));
@@ -121,6 +134,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             // Create a method instance.
             if (data.get("modelType").equals("openai")) {
                 url = "https://api.openai.com/v1/chat/completions";
+            } else if (data.get("modelType").equals("fastchat")) {
+                url = "https://fastchatapi.aigpu.devxwiki.com/v1/chat/completions";
             }
             logger.info("Calling url: " + url);
             PostMethod post = new PostMethod(url);
@@ -152,7 +167,8 @@ public class GPTRestAPI extends ModifiablePageResource implements XWikiRestCompo
             // Construct the JSON input string
             JSONObject jsonInput = new JSONObject();
             jsonInput.put("model", data.get("model"));
-            jsonInput.put("stream", isStreaming);
+            if (isStreaming)
+                jsonInput.put("stream", isStreaming);
             jsonInput.put("messages", messagesArray);
             String jsonInputString = jsonInput.toString();
             logger.info("Sending: " + jsonInputString);
